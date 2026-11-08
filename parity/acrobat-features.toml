@@ -1530,6 +1530,18 @@ evidence = ["crates/ui-egui/tests/it/ui.rs::drag_selects_text_and_copy_returns_i
 notes = "Drag to select; ⇧-click extends the selection to the click, keeping its anchor (same page only); with the Select tool, quick clicks select a word (two), the line (three) or all the text on the page (four). A floating action bar offers comment, highlight, underline, strikethrough, replace text and copy after selection. The markup and Redact tools mark a double-clicked word and stop there. Missing: selection across pages (dragging or ⇧-clicking onto another page), paragraph selection, and ⌘A across the whole document (it selects the current page). Acrobat's other selection context actions such as bookmark, link and export selection remain outside this bar."
 
 [[feature]]
+id = "comment.translate-selection"
+title = "Translate selected text"
+area = "E"
+tier = "P2"
+milestone = "M4"
+status = "partial"
+commands = []
+tools = []
+evidence = ["crates/ui-egui/tests/it/comments.rs::selected_text_opens_translation_popup_without_consuming_selection", "crates/ui-egui/src/translation.rs::mocked_provider_translates_without_network", "crates/ui-egui/src/translation.rs::provider_errors_are_returned_to_the_popup_layer"]
+notes = "The Select tool's action bar opens a compact translation popup with automatic/manual source language, target language, asynchronous loading/error/retry, copy and local saved translations. Desktop uses a LibreTranslate-compatible provider configured by PDFCRAFT_TRANSLATE_URL and PDFCRAFT_TRANSLATE_API_KEY; saved entries survive app restart. The web build still needs a host fetch adapter, and there is no headless automation tool yet. See docs/translation.md."
+
+[[feature]]
 id = "view.column-select"
 title = "Column select (Alt/Option-drag a rectangle of text)"
 area = "B"

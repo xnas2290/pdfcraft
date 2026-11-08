@@ -20,6 +20,10 @@ pub enum ScrollSpeed {
 /// egui's own `line_scroll_speed`, which its wheel zoom rate is tuned against.
 pub(crate) const EGUI_LINE_POINTS: f32 = if cfg!(target_arch = "wasm32") { 8.0 } else { 40.0 };
 
+/// Extra responsiveness for precise touchpad motion. This applies to both the direct
+/// movement and the kinetic hand-off so the page does not slow down when fingers lift.
+pub(crate) const PRECISE_SCROLL_FACTOR: f32 = 3.0;
+
 /// Points one wheel line scrolls at Normal speed.
 const NORMAL_LINE_POINTS: f32 = if cfg!(target_arch = "wasm32") {
     // The browser's line deltas, which egui already scales for the web.

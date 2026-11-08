@@ -62,6 +62,7 @@ pub use print_ui::{Handling as PrintHandling, OptionsSource, PrintDraft, Printer
 pub use redact_ui::{HiddenDraft, PagesDraft as RedactPagesDraft, RedactPrefs, SearchDraft as RedactSearchDraft, SearchMode as RedactSearchMode};
 pub mod i18n;
 pub mod theme;
+mod translation;
 mod widgets;
 
 use pdfcraft_engine::{DocId, Session};
@@ -312,6 +313,8 @@ pub struct PdfCraftApp {
     full_screen_tool: Option<QuickTool>,
     /// Comment author, per-tool colours and widths, pin.
     pub comment_prefs: comments::CommentPrefs,
+    /// Languages shown in the translation popup by default (kept in Preferences).
+    pub translation_favorite_languages: Vec<(String, String)>,
     pub(crate) hotbar: hotbar::Hotbar,
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,

@@ -530,16 +530,23 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     });
     ui.add_space(12.0);
 
-    // Card 5: Fill & Sign
-    let title5 = tl!("Fill & Sign");
-    preference_card(ui, t, title5, Some("pen-tool"), &mut ctx, |ui, ctx| {
+    // Card 5: Translation
+    let title5 = tl!("Translation");
+    preference_card(ui, t, title5, Some("lang-2"), &mut ctx, |ui, ctx| {
+        card_translation(ui, app, t, ctx);
+    });
+    ui.add_space(12.0);
+
+    // Card 6: Fill & Sign
+    let title6 = tl!("Fill & Sign");
+    preference_card(ui, t, title6, Some("pen-tool"), &mut ctx, |ui, ctx| {
         card_fill_and_sign(ui, app, t, ctx);
     });
     ui.add_space(12.0);
 
-    // Card 6: JavaScript
-    let title6 = "JavaScript";
-    preference_card(ui, t, title6, Some("code-xml"), &mut ctx, |ui, ctx| {
+    // Card 7: JavaScript
+    let title7 = "JavaScript";
+    preference_card(ui, t, title7, Some("code-xml"), &mut ctx, |ui, ctx| {
         card_javascript(ui, app, t, ctx);
     });
     ui.add_space(12.0);
@@ -791,7 +798,27 @@ fn card_identity(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut
     ctx.checkbox(ui, &mut app.comment_prefs.hide_empty_highlight_hover, tl!("Hide hover previews for highlights without comment text"), t);
 }
 
-/// Content for Card 5: Fill & Sign
+/// Content for Card 5: Translation
+fn card_translation(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, _ctx: &mut PrefSearchContext) {
+    ui.label(egui::RichText::new(tl!("Favorite languages")).font(theme::semibold(13.0)));
+    ui.label(egui::RichText::new(tl!("Languages shown in the translation popup.")).small().color(t.text_muted));
+    ui.add_space(8.0);
+    for (code, name) in crate::translation::MORE_LANGUAGES {
+        let mut favorite = app.translation_favorite_languages.iter().any(|(saved, _)| saved == code);
+        if ui.add(widgets::checkbox(&mut favorite, tl!(name))).changed() {
+            if favorite {
+                if !app.translation_favorite_languages.iter().any(|(saved, _)| saved == code) {
+                    app.translation_favorite_languages.push(((*code).to_string(), (*name).to_string()));
+                }
+            } else {
+                app.translation_favorite_languages.retain(|(saved, _)| saved != code);
+            }
+        }
+    }
+    ui.label(egui::RichText::new(tl!("Favorite languages appear in the translation popup.")).small().color(t.text_muted));
+}
+
+/// Content for Card 6: Fill & Sign
 fn card_fill_and_sign(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut PrefSearchContext) {
     ctx.checkbox(ui, &mut app.flatten_fill_sign_on_save, tl!("Flatten Fill & Sign when saving"), t);
     ctx.label_secondary(ui, tl!("Text, marks and signatures become part of the page. Other comments stay editable."), t);

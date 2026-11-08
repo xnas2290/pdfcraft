@@ -154,6 +154,7 @@ impl PdfCraftApp {
         v["pinned_tools"] = serde_json::json!(self.pinned_tools);
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
+        v["translation_favorite_languages"] = serde_json::json!(self.translation_favorite_languages);
         v["show_page_edge_shadows"] = self.show_page_edge_shadows.into();
         // Not `check_updates_at_start`: that key was an opt-in of its own, off unless chosen, and
         // settings written then would turn this off unasked.
@@ -371,6 +372,14 @@ impl PdfCraftApp {
         }
         if let Some(pinned) = v["comment_tool_pinned"].as_bool() {
             self.comment_prefs.pinned = pinned;
+        }
+        if let Some(favorites) = v["translation_favorite_languages"].as_array() {
+            self.translation_favorite_languages = favorites
+                .iter()
+                .filter_map(|item| Some((item.get(0)?.as_str()?.to_string(), item.get(1)?.as_str()?.to_string())))
+                .filter(|(code, _)| crate::translation::MORE_LANGUAGES.iter().any(|(known, _)| *known == code))
+                .take(32)
+                .collect();
         }
     }
 

@@ -678,6 +678,8 @@ pub struct DocView {
     pub block_drag: Option<crate::edit_text_ui::BlockDrag>,
     /// Commenting state: selected comment, gestures, composer.
     pub comments: crate::comments::CommentView,
+    /// The compact translation popup for the current text selection.
+    pub translation: crate::translation::TranslationView,
     pub measure: crate::measure_ui::MeasureView,
     /// Form filling state: the focused field.
     pub forms: crate::forms_ui::FormView,
@@ -1091,6 +1093,7 @@ impl DocView {
             pan_hold_until: 0.0,
             slow_pages: HashSet::new(),
             comments: Default::default(),
+            translation: Default::default(),
             measure: Default::default(),
             forms: Default::default(),
             prepare: Default::default(),
@@ -2207,7 +2210,7 @@ fn read_wheel(ui: &mut egui::Ui, view: &mut DocView, avail: Rect, single_paging:
         let line_points = if live.is_finite() && live > 0.0 { live } else { crate::scroll_speed::EGUI_LINE_POINTS };
         ui.input(|i| crate::wheel_boost::accumulate(&i.events, line_points, single_paging))
     };
-    let mut precise_scroll = input.precise;
+    let mut precise_scroll = input.precise * crate::scroll_speed::PRECISE_SCROLL_FACTOR;
     let mut line_base = input.line;
     if precise_scroll.x != 0.0 {
         view.wheel_boost_x.reset();
@@ -3231,7 +3234,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     view.viewport_screen = out.inner_rect;
     view.auto_scroll.paint(ui, avail);
     if unobstructed && matches!(tool, QuickTool::Select | QuickTool::ColumnSelect) {
-        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy);
+        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy, &doc.name, &app.translation_favorite_languages);
     }
 
     // Collect all main-page demand, including cached surfaces, for byte admission later.

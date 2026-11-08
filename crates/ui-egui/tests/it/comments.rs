@@ -563,6 +563,19 @@ fn selected_text_shows_actions_and_underlines_without_changing_tools() {
 }
 
 #[test]
+fn selected_text_opens_translation_popup_without_consuming_selection() {
+    let mut h = harness(|_| {});
+    h.state_mut().views[0].select_text(0, 4, 8);
+    h.run_steps(3);
+    h.get_by_label("Translate").click();
+    h.run_steps(2);
+    assert_eq!(h.state().views[0].translation_original(), Some("quick"));
+    assert!(h.state().views[0].selected_text().is_some(), "the source selection remains available");
+    assert!(h.query_by_label("From").is_none());
+    assert!(h.query_by_label("To").is_none());
+}
+
+#[test]
 fn selected_text_copy_action_closes_the_bar_and_keeps_the_selection() {
     let mut h = harness(|_| {});
     h.state_mut().views[0].select_text(0, 4, 8);

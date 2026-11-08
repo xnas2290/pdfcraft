@@ -16,7 +16,7 @@ const WINDOW: f64 = 0.1;
 /// A lift this long after the last motion is a finger that stopped first: no glide.
 const STILL: f64 = 0.05;
 /// The glide slows by `e` every this many seconds; it travels the lift speed times this.
-const TAU: f32 = 0.35;
+const TAU: f32 = 0.75;
 /// Below this speed (points per second) a lift doesn't glide, and a glide stops.
 const START_SPEED: f32 = 150.0;
 const STOP_SPEED: f32 = 10.0;
@@ -112,7 +112,7 @@ impl Fling {
         // Each sample is the motion since the pass before it, so the first one's motion
         // happened before the span starts.
         let moved = recent.iter().skip(1).fold(Vec2::ZERO, |sum, (_, d)| sum + *d);
-        let v = moved / span;
+        let v = moved / span * crate::scroll_speed::PRECISE_SCROLL_FACTOR;
         if !(v.x.is_finite() && v.y.is_finite()) || v.length() < START_SPEED {
             return Vec2::ZERO;
         }

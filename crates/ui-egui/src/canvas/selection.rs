@@ -1,4 +1,4 @@
-use super::{Arc, DocInfo, DocView, Edit, HashMap, PageText, Pos2, Range, Rect, comments, pos2};
+use super::{Arc, DocId, DocInfo, DocView, Edit, HashMap, PageText, Pos2, Range, Rect, comments, pos2};
 
 /// A text selection on one page.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -60,6 +60,12 @@ impl DocView {
         let page = info.pages.get(s.page)?;
         let quads: Vec<[f64; 8]> = s.rects(text).into_iter().map(|r| page.view_rect_to_quad(r)).collect();
         (!quads.is_empty()).then_some((s.page, quads))
+    }
+
+    /// The source text currently shown in the translation popup, if it is open.
+    pub fn translation_original(&self) -> Option<&str> {
+        (self.translation.open && !self.translation.original.is_empty())
+            .then_some(self.translation.original.as_str())
     }
 
     pub(crate) fn clear_selection(&mut self) {
@@ -166,6 +172,7 @@ impl DocView {
 
 #[derive(Clone, Copy)]
 enum SelectionAction {
+    Translate,
     Note,
     Markup(comments::CommentTool),
     Replace,
@@ -181,6 +188,8 @@ pub(super) fn selection_actions(
     prefs: &comments::CommentPrefs,
     can_comment: bool,
     can_copy: bool,
+    document: &str,
+    favorite_languages: &[(String, String)],
 ) -> bool {
     if ui.input(|input| input.pointer.is_decidedly_dragging()) {
         return false;
@@ -205,6 +214,30 @@ pub(super) fn selection_actions(
     }
     let x = rect.left().clamp(viewport.left() + 8.0, (viewport.right() - 520.0).max(viewport.left() + 8.0));
     let y = if rect.bottom() + 48.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 44.0).max(viewport.top() + 6.0) };
+    view.translation.poll();
+    if view.translation.open && view.translation.original != selected {
+        view.translation.close();
+    }
+    if view.translation.open {
+        view.translation.extra_languages = favorite_languages.to_vec();
+        translation_popup(ui, &mut view.translation, view.id, pos2(x, y + 46.0));
+        if view.translation.save_requested {
+            view.translation.save_requested = false;
+            if let (Some(result), Some((page, quads))) = (view.translation.translated.clone(), view.selection_quads(info)) {
+                let contents = result;
+                view.pending_edit = Some(Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
+                    page,
+                    shape: pdfcraft_engine::Shape::TextMarkup { kind: pdfcraft_engine::Markup::Underline, quads },
+                    style: pdfcraft_engine::Style { color: [0.0, 0.47, 0.84], opacity: 1.0, width: 1.0, fill: None },
+                    contents,
+                    author: String::new(),
+                }));
+                view.translation.close();
+                view.clear_selection();
+                return false;
+            }
+        }
+    }
     let mut chosen = None;
     egui::Area::new(egui::Id::unique(("text-selection-actions", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(
         ui.ctx(),
@@ -222,6 +255,9 @@ pub(super) fn selection_actions(
                             chosen = Some(action);
                         }
                     }
+                    if ui.add_enabled(can_copy, egui::Button::new(tl!("Translate"))).clicked() {
+                        chosen = Some(SelectionAction::Translate);
+                    }
                     if ui.add_enabled(can_copy, egui::Button::new(tl!("Copy"))).clicked() {
                         chosen = Some(SelectionAction::Copy);
                     }
@@ -230,10 +266,15 @@ pub(super) fn selection_actions(
         },
     );
     let Some(action) = chosen else { return false };
-    if let SelectionAction::Copy = action {
+    if matches!(action, SelectionAction::Copy) {
         // Copying closes the bar but keeps the words selected, for ⌘C or a second action.
         view.actions_dismissed = Some(selection);
         return true;
+    }
+    if matches!(action, SelectionAction::Translate) {
+        view.translation.open(selected.to_string(), document.to_string(), selection.page);
+        view.translation.start();
+        return false;
     }
     let Some((page, quads)) = view.selection_quads(info) else { return false };
     let last = quads.last().copied().unwrap_or_default();
@@ -263,8 +304,80 @@ pub(super) fn selection_actions(
                 author: prefs.author.clone(),
             }));
         }
-        // Copy is dispatched through the app after the view borrow ends.
-        SelectionAction::Copy => {}
+        SelectionAction::Translate | SelectionAction::Copy => {}
     }
     false
+}
+
+fn translation_popup(ui: &mut egui::Ui, view: &mut crate::translation::TranslationView, id: DocId, at: Pos2) {
+    let mut changed = false;
+    egui::Area::new(egui::Id::new(("translation-popup", id.0))).order(egui::Order::Foreground).fixed_pos(at).show(ui.ctx(), |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| {
+            ui.set_width(520.0);
+            ui.columns(2, |columns| {
+                let languages = view.languages();
+                let source = view.source.clone();
+                egui::ComboBox::from_id_salt(("translation-source", id.0))
+                    .width(220.0)
+                    .selected_text(languages.iter().find(|(code, _)| *code == source).map_or(source.as_str(), |(_, name)| name.as_str()))
+                    .show_ui(&mut columns[0], |ui| {
+                        for (code, name) in &languages {
+                            changed |= ui.selectable_value(&mut view.source, code.clone(), tl!(name)).changed();
+                        }
+                    });
+                let input_changed =
+                    columns[0].add(egui::TextEdit::multiline(&mut view.original).desired_width(f32::INFINITY).desired_rows(5)).changed();
+                if input_changed {
+                    view.translated = None;
+                    view.error = None;
+                    view.saved = false;
+                }
+
+                let target = view.target.clone();
+                egui::ComboBox::from_id_salt(("translation-target", id.0))
+                    .width(220.0)
+                    .selected_text(languages.iter().find(|(code, _)| *code == target).map_or(target.as_str(), |(_, name)| name.as_str()))
+                    .show_ui(&mut columns[1], |ui| {
+                        for (code, name) in languages.iter().filter(|(code, _)| code != "auto") {
+                            changed |= ui.selectable_value(&mut view.target, code.clone(), tl!(name)).changed();
+                        }
+                    });
+                if let Some(result) = view.translated.as_mut() {
+                    crate::translation::show_output(&mut columns[1], result);
+                } else if view.loading() {
+                    columns[1].add_sized([220.0, 100.0], egui::Label::new(tl!("Translating…")));
+                } else if let Some(error) = &view.error {
+                    columns[1].colored_label(columns[1].visuals().error_fg_color, error);
+                } else {
+                    columns[1].add_sized([220.0, 100.0], egui::Label::new(tl!("Translation will appear here")));
+                }
+            });
+            if changed {
+                view.start();
+            }
+            if view.loading() {
+                ui.ctx().request_repaint();
+            }
+            ui.horizontal(|ui| {
+                if ui.button(tl!("Translate")).clicked() {
+                    view.start();
+                }
+                if let Some(error) = &view.error {
+                    ui.colored_label(ui.visuals().error_fg_color, error);
+                    if ui.button(tl!("Retry")).clicked() {
+                        view.start();
+                    }
+                }
+                if let Some(result) = &view.translated {
+                    if ui.button(tl!("Copy")).clicked() {
+                        ui.ctx().copy_text(result.clone());
+                    }
+                    if ui.button(if view.saved { tl!("Saved") } else { tl!("Save") }).clicked() && !view.saved {
+                        view.save_requested = true;
+                        view.saved = true;
+                    }
+                }
+            });
+        });
+    });
 }

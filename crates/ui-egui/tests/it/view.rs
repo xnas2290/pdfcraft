@@ -668,8 +668,8 @@ fn wheel_turns_one_page_per_notch_and_per_trackpad_swipe() {
 }
 
 #[test]
-fn precise_touchpad_wheel_scrolls_one_to_one() {
-    // A precision touchpad's pixel delta scrolls the page by that amount in the same frame,
+fn precise_touchpad_wheel_scrolls_responsively() {
+    // A precision touchpad's pixel delta scrolls the page by 3x that amount in the same frame,
     // instead of egui easing it over several frames so the page lags the finger (#759). A single
     // 200 px precise event is well over egui's 8 px smoothing threshold, so without the fix only
     // a fraction would land on the first frame.
@@ -683,7 +683,7 @@ fn precise_touchpad_wheel_scrolls_one_to_one() {
     // page jumps the full 200 px at once; an eased path would ramp there over ~0.1 s (6 frames).
     h.run_steps(4);
     let moved = before - rect(&h, 0).expect("page 1 still laid out").min.y;
-    assert!(moved > 190.0, "a 200 px precise swipe scrolls ~200 px at once, not an eased fraction: moved {moved}");
+    assert!(moved > 240.0, "a 200 px precise swipe scrolls ~250 px at once, not an eased fraction: moved {moved}");
     // And it stops with the finger: idle frames must not drift on a leftover easing tail.
     let settled = rect(&h, 0).unwrap().min.y;
     h.run_steps(20);
@@ -894,9 +894,9 @@ fn swipe_and_lift(h: &mut Harness<'static, PdfCraftApp>) -> f32 {
 fn touchpad_swipe_glides_on_after_the_fingers_lift_and_stops() {
     let mut h = harness_stepping(1.0 / 60.0, &[("layout", "continuous"), ("zoom", "300")]);
     let swiped = swipe_and_lift(&mut h);
-    // The seven 25-point motions, 1:1 (#759).
-    assert!(swiped >= 174.0, "the swipe scrolls 1:1: moved {swiped}");
-    // 1500 points a second at the lift: about 190 points over the next 10 frames.
+    // The seven 25-point motions, with the precise touchpad responsiveness factor (#759).
+    assert!(swiped >= 216.0, "the swipe scrolls responsively: moved {swiped}");
+    // 1875 points a second at the lift: about 270 points over the next 10 frames.
     let glided = scroll_over(&mut h, 10);
     assert!(glided > 100.0, "the page glides on after the lift: moved {glided} more");
     let rest = scroll_over(&mut h, 180);
